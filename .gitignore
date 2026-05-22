@@ -1,0 +1,47 @@
+# ─────────────────────────────────────────
+# Local working documents — never push
+# ─────────────────────────────────────────
+
+# Personal notes, drafts, reference docs
+docs/
+
+# Dev-manager runtime state and plans
+.dev-manager/plans/
+.dev-manager/state.json
+
+# ─────────────────────────────────────────
+# Environment & runtime
+# ─────────────────────────────────────────
+.env
+.env.*
+*.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+build/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# ─────────────────────────────────────────
+# OS / editor noise
+# ─────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.vscode/
+.idea/
+
+# ─────────────────────────────────────────
+# Project outputs (usually regenerated)
+# ─────────────────────────────────────────
+outputs/
+*.log
