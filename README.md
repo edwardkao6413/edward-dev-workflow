@@ -22,7 +22,7 @@ Run these two commands inside Claude Code:
 
 ```
 /plugin marketplace add edwardkao6413/edward-dev-workflow
-/plugin install edward-dev-workflow@edward-workflow
+/plugin install edward-dev-workflow@edward-dev-workflow
 ```
 
 The first command registers this repo as a plugin source. The second installs the plugin.
@@ -36,7 +36,7 @@ The first command registers this repo as a plugin source. The second installs th
 2. In Claude Code, run:
    ```
    /plugin marketplace add /path/to/edward-workflow
-   /plugin install edward-dev-workflow@edward-workflow
+   /plugin install edward-dev-workflow@edward-dev-workflow
    ```
 
 ---
