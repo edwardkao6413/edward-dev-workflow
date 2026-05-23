@@ -1,0 +1,14 @@
+{
+  "$schema": "https://code.claude.com/schemas/marketplace.json",
+  "name": "edward-dev-workflow",
+  "owner": { "name": "Edward Kao" },
+  "description": "AI-driven development workflow with multi-stage gates, domain specialists, and orchestrated agent dispatch.",
+  "plugins": [
+    {
+      "name": "edward-dev-workflow",
+      "source": ".",
+      "description": "AI-driven development workflow with multi-stage gates, domain specialists, and orchestrated agent dispatch.",
+      "category": "productivity"
+    }
+  ]
+}
