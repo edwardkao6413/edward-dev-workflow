@@ -11,7 +11,10 @@
       "name": "edward-dev-workflow",
       "description": "AI-driven development workflow with multi-stage gates, domain specialists, and orchestrated agent dispatch.",
       "version": "1.0.0",
-      "source": "./",
+      "source": {
+        "source": "github",
+        "repo": "edwardkao6413/edward-dev-workflow"
+      },
       "author": {
         "name": "Edward Kao",
         "email": "edwardkao6413@gmail.com"
