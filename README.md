@@ -16,18 +16,28 @@ An AI-driven development workflow plugin for Claude Code. It orchestrates the fu
 
 ## Installation
 
-### Option A — Superpowers Marketplace
+### Option A — Via Claude Code (recommended)
 
-Search for `edward-dev-workflow` in the Superpowers marketplace and install directly.
+Run these two commands inside Claude Code:
 
-### Option B — Manual (Git Clone)
+```
+/plugin marketplace add edwardkao6413/edward-dev-workflow
+/plugin install edward-dev-workflow@edward-workflow
+```
+
+The first command registers this repo as a plugin source. The second installs the plugin.
+
+### Option B — Local (Git Clone)
 
 1. Clone this repo:
    ```
-   git clone https://github.com/edwardkao6413/edward-workflow.git
+   git clone https://github.com/edwardkao6413/edward-dev-workflow.git
    ```
-2. In Claude Code, open Settings → Plugins → Add Local Plugin
-3. Point it at the cloned directory
+2. In Claude Code, run:
+   ```
+   /plugin marketplace add /path/to/edward-workflow
+   /plugin install edward-dev-workflow@edward-workflow
+   ```
 
 ---
 
@@ -36,10 +46,10 @@ Search for `edward-dev-workflow` in the Superpowers marketplace and install dire
 Once installed, start any new project with:
 
 ```
-/init-project
+/edward-dev-workflow:init-project
 ```
 
-This scaffolds the full governance structure (`.dev-manager/`, `CLAUDE.md`, `state.json`) into your project and hands control to `dev-manager` to begin work.
+This scaffolds the full governance structure (`.dev-manager/`, `project.config.md`, `state.json`) into your project and hands control to `dev-manager` to begin work.
 
 ---
 
