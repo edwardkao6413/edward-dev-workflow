@@ -4,5 +4,8 @@
   "description": "AI-driven development workflow with multi-stage gates, domain specialists, and orchestrated agent dispatch.",
   "author": { "name": "Edward Kao" },
   "repository": "https://github.com/edwardkao6413/edward-dev-workflow",
-  "license": "MIT"
+  "license": "MIT",
+  "peerDependencies": {
+    "superpowers": "Install via: /plugin marketplace add obra/superpowers"
+  }
 }
