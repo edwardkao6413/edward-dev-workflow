@@ -5,9 +5,16 @@ description: >
   approves a plan, BEFORE subagent-driven-development begins implementation.
   Validates that the plan is compatible with the existing data pipeline architecture,
   raw data formats, and maintainability standards for the project domain.
-  ONLY activates when project.type is a data domain OR data keywords appear in the plan.
+  ONLY activates when project.type is a data domain, data keywords appear in the plan,
+  OR the user describes the project in plain language as a data project.
   Never triggers on non-data projects.
-  Data domain triggers: "pipeline", "ETL", "ELT", "dataset", "dataframe", "SQL",
+  Conversational triggers (plain-language project descriptions): "data analysis project",
+  "data reading", "data processing", "final output", "read data", "process data",
+  "clean data", "load data", "transform data", "data pipeline", "data workflow",
+  "input data", "output data", "analyse data", "analyze data", "data ingestion",
+  "data wrangling", "data preparation", "data exploration", "exploratory analysis",
+  "EDA", "data reporting", "generate report from data", "data-driven", "data flow".
+  Keyword triggers: "pipeline", "ETL", "ELT", "dataset", "dataframe", "SQL",
   "query", "schema", "model", "feature engineering", "bioinformatics", "biomechanics",
   "FASTQ", "BAM", "c3d", "trc", "marker", "trajectory", "genome", "alignment",
   "analysis", "preprocessing", "normalisation", "raw data".
@@ -49,6 +56,28 @@ that plan-inspector (a general agent) cannot provide.
 ## 2. Activation Conditions
 
 Activate if ANY of the following are true:
+
+**Conversational project description** — the user describes the project in plain language
+and the description matches patterns like:
+
+| User says (examples) | Detected as |
+|---|---|
+| "this is a data analysis project" | data project |
+| "the project involves data reading, data processing, and final output" | data project |
+| "we need to read data, clean it, and generate a report" | data project |
+| "load data → process → output results" | data project |
+| "data ingestion and transformation pipeline" | data project |
+| "exploratory data analysis / EDA" | data project |
+| "data wrangling and visualisation" | data project |
+| "parse input files, compute metrics, export results" | data project |
+
+Match any description containing **two or more** of these signal phrases (case-insensitive):
+`data`, `read`, `load`, `ingest`, `process`, `clean`, `transform`, `wrangle`,
+`analyse`, `analyze`, `explore`, `output`, `report`, `export`, `pipeline`,
+`workflow`, `result`, `metric`, `visualis`, `visualiz`
+
+Single-word mentions of `data` alone do not trigger — require at least one co-occurring
+signal phrase from the list above.
 
 **Project type match** — `state.json → project.type` contains any of:
 `biomechanics`, `bioinformatics`, `data-science`, `data-engineering`,

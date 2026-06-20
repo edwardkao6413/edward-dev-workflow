@@ -51,6 +51,26 @@ CLAUDE.md: trigger phrase detected → re-read state.json
         │         │
         │         ▼
         │    dev-manager dispatches: plan-inspector
+        │         │
+        │         ▼
+        │    dev-manager dispatches: codex-plan-inspector (optional)
+        │    ┌──────────────────────────────────────┐
+        │    │  Skip conditions (any one = skip):    │
+        │    │    • user said "not dispatch",        │
+        │    │      "skip codex", or "no codex"      │
+        │    │    • codex CLI not on PATH            │
+        │    │  If skipped → log + continue          │
+        │    │                                       │
+        │    │  Codex verdict?                       │
+        │    │    APPROVE / SKIPPED                  │
+        │    │      → proceed to plan approval gate  │
+        │    │    REVISE → writing-plans revises     │
+        │    │             → plan-inspector reruns   │
+        │    │             → codex-plan-inspector    │
+        │    │    REJECT → escalate to user;         │
+        │    │             user decides: override    │
+        │    │             or revise                 │
+        │    └──────────────────────────────────────┘
         │    ┌──────────────────────────────────────┐
         │    │  Plan approved?                       │
         │    │    NO  → writing-plans revises        │
@@ -207,6 +227,7 @@ CLAUDE.md: trigger phrase detected → re-read state.json
 | `brainstorming` | Planning | PLANNING | CLAUDE.md trigger | `writing-plans` |
 | `writing-plans` | Planning | PLANNING | `brainstorming` | `dev-manager` |
 | `plan-inspector` | Planning | PLANNING | `dev-manager` | `dev-manager` |
+| `codex-plan-inspector` | Planning (optional) | PLANNING | `dev-manager` (after `plan-inspector`) | `dev-manager` |
 | `data-manager/*` | Planning (domain gate) | PLANNING | `dev-manager` | `dev-manager` |
 | `subagent-driven-development` | Implementation | DEVELOPING | `dev-manager` | `dev-manager` |
 | `dispatching-parallel-agents` | Implementation | DEVELOPING | `subagent-driven-development` | `subagent-driven-development` |
@@ -296,6 +317,9 @@ Superpower / writing-plans saves plan → .dev-manager/plans/
         │
         ▼
 dev-manager reads plan → runs plan-inspector
+        │
+        ▼
+dev-manager runs codex-plan-inspector (optional — skipped if user opted out or CLI absent)
         │
         ▼
 plan_approved = true → DEVELOPING unlocked

@@ -9,6 +9,11 @@ description: >
   Also triggers when the user directly calls any agent by name, or asks "what stage
   are we in?". Use this even for small fixes — the skill determines whether a full
   workflow or the short path is appropriate.
+  Additionally, auto-detects data projects from plain-language descriptions: when the
+  user says things like "this is a data analysis project", "involves data reading,
+  processing, and output", "load → clean → export", or any description containing two
+  or more data processing signal words — dev-manager flags the domain and queues
+  data-manager automatically.
 ---
 
 # Development Manager Agent
@@ -40,6 +45,59 @@ whenever you are unsure which agent to dispatch next.
 ## 2. Stage Detection
 
 Read `state.json → workflow.stage`. If missing, infer from context:
+
+---
+
+## 2b. Conversational Project-Type Detection
+
+**When to run:** At the very start of every session, and whenever the user describes the
+project for the first time or says something like "this project is about…".
+
+Scan the user's message for plain-language data project signals. If the description
+contains **two or more** of these co-occurring signal words (case-insensitive):
+
+> `data`, `read`, `load`, `ingest`, `process`, `clean`, `transform`, `wrangle`,
+> `analyse`, `analyze`, `explore`, `output`, `report`, `export`, `pipeline`,
+> `workflow`, `result`, `metric`, `visualis`, `visualiz`
+
+**→ Auto-flag as a data project** and write to `state.json`:
+
+```json
+{
+  "project": {
+    "type": "data-science",
+    "domain_detected_from": "conversational description",
+    "domain_detection_phrase": "<the user's exact phrase>"
+  }
+}
+```
+
+Then **immediately dispatch `data-manager`** — do not wait for plan-inspector to finish.
+Data-manager will validate sub-agent selection; dev-manager resumes normal flow after.
+
+**Examples that trigger auto-dispatch:**
+
+| User says | Triggers data-manager? |
+|---|---|
+| "this is a data analysis project, involved data reading, data processing, and final output" | ✅ Yes |
+| "we read raw files, clean them, then export results" | ✅ Yes |
+| "load CSV → transform → generate report" | ✅ Yes |
+| "data ingestion and ETL pipeline" | ✅ Yes |
+| "EDA on the dataset" | ✅ Yes |
+| "fix a typo in the README" | ❌ No |
+| "add a button to the UI" | ❌ No |
+| "refactor the auth module" | ❌ No |
+
+**Single-word `data` alone does not trigger** — it must co-occur with at least one
+processing or output signal word from the list above.
+
+If detection fires, announce once:
+> "📊 Data project detected from your description. Flagging as data domain and
+> dispatching data-manager after plan-inspector completes."
+
+Do not re-announce on subsequent turns in the same session.
+
+---
 
 | Stage | Signals |
 |---|---|
@@ -97,11 +155,20 @@ Read `.dev-manager/workflow.md` Section 4 for path selection rules.
 ### Path A — Full Workflow (plan exists before implementation)
 
 ```
+[session start] → Section 2b: conversational data project detection
+        │ (if data domain flagged, queue data-manager)
+        ▼
 brainstorming → writing-plans
         │
         ▼
 plan-inspector (dev-manager dispatches)
         │ approved
+        ▼
+codex-plan-inspector (optional — skipped if opted out or CLI absent)
+        │ approved / skipped
+        ▼
+data-manager (if data domain detected via any path — else skip silently)
+        │ approved / skipped
         ▼
 subagent-driven-development
   └── per task: dispatching-parallel-agents? → systematic-debugging?
@@ -174,29 +241,39 @@ Never advance a stage without writing the new stage to `state.json` first.
 
 ## 6b. Data Domain Delegation
 
-After `plan_approved = true`, before dispatching `subagent-driven-development`,
-check whether the project is a data domain:
+Data-manager is triggered by **three detection paths** — check them in this order:
 
+### Path 1 — Conversational (earliest, session-start)
+See Section 2b. If the user's opening description matches data project signals,
+flag immediately and queue data-manager for dispatch after plan-inspector.
+Write detected domain to `state.json → project.type`.
+
+### Path 2 — state.json project type (after plan written)
 ```
 project.type IN [biomechanics, bioinformatics, data-science,
                  data-engineering, machine-learning, analytics]
 OR
 project.domain contains data-related terms
-OR
-plan content contains data keywords (pipeline, ETL, dataset, SQL, etc.)
 ```
 
-**If data domain detected:**
+### Path 3 — Plan keyword scan (after plan written)
+Plan content in `.dev-manager/plans/` contains any of:
+`pipeline`, `ETL`, `ELT`, `dataset`, `dataframe`, `SQL`, `query`, `schema`,
+`raw data`, `preprocessing`, `normalisation`, `normalization`,
+`feature engineering`, `FASTQ`, `BAM`, `c3d`, `trc`, `genome`, `alignment`,
+`time series`, `signal processing`
+
+**If any path matches:**
 → dispatch `data-manager` (read `.agents/data-manager/SKILL.md`)
 → data-manager selects and runs relevant sub-agents
-→ wait for data-manager approval before dispatching subagent-driven-development
+→ wait for data-manager approval before dispatching `subagent-driven-development`
 
-**If NOT data domain:**
+**If no path matches:**
 → skip data-manager silently
-→ dispatch subagent-driven-development directly
+→ dispatch `subagent-driven-development` directly
 
-Data-manager handles its own skip logic — you just need to call it;
-it will return immediately if no data domain is detected.
+Data-manager handles its own internal skip logic — calling it when uncertain is safe;
+it returns immediately if no data domain is confirmed.
 
 ---
 
@@ -250,6 +327,7 @@ Example:
 | Evals fail at final gate | Block closure; surface failures; request fix + re-run |
 | Floating agent fires mid-workflow | Let it run; do not change stage; resume after |
 | codebase-orchestrator not in active_agents | Skip silently; log in audit_trail; proceed to requesting-code-review |
+| user describes project as data-related in plain language | Run Section 2b detection; if matched, flag domain + queue data-manager; announce once |
 | data-manager: no data domain detected | data-manager skips itself; dev-manager proceeds to subagent-driven-development |
 | data-manager requests plan revisions | Route back to writing-plans → plan-inspector → data-manager cycle |
 | data-manager sub-agent blocked | Surface to user; do not begin implementation until resolved |

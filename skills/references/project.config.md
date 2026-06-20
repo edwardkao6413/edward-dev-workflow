@@ -70,9 +70,10 @@ Delete the sections that don't apply. Fill in the ones that do.
 
 ## 6. Active Agents
 
-By default all three dev-manager subordinates are active. Disable any that don't apply:
+By default all dev-manager subordinates are active. Disable any that don't apply:
 
 - [x] plan-inspector
+- [x] codex-plan-inspector ← optional; runs after plan-inspector. Set to [ ] to permanently skip, or tell Claude "skip codex" at runtime.
 - [x] karapathy-guideline
 - [x] system-checker
 
@@ -99,6 +100,7 @@ project-root/
 │   ├── dev-manager/                 ← always active
 │   │   ├── SKILL.md
 │   │   ├── plan-inspector/SKILL.md
+│   │   ├── codex-plan-inspector/SKILL.md  ← optional; after plan-inspector
 │   │   ├── karapathy-guideline/SKILL.md
 │   │   └── system-checker/SKILL.md
 │   └── superpower/                  ← Superpower plugin fallback agents

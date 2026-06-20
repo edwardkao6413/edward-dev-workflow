@@ -272,3 +272,25 @@ When the plan touches data processing pipelines, each subagent must pay extra at
 - If the codebase is large, prioritise the files most relevant to the plan's scope.
 - The goal is not to block progress but to surface what the user needs to know before coding starts.
 - The revised plan from Subagent 3 is a **proposal** — the user makes the final call.
+
+---
+
+## Handoff — codex-plan-inspector
+
+After presenting the full Plan Inspection Report to the user, return control to dev-manager
+with this explicit handoff:
+
+```
+[plan-inspector] Complete. Returning control to dev-manager.
+Revised plan ready for external review.
+```
+
+Dev-manager will then dispatch **codex-plan-inspector** as the next step, unless:
+- The user has said `"not dispatch"`, `"skip codex"`, `"no codex"`, or equivalent
+- Codex CLI is not found on PATH
+
+If either skip condition is detected, dev-manager logs the skip and proceeds directly
+to the `plan_approved` gate decision.
+
+**Do not proceed to the plan approval gate yourself** — that decision belongs to dev-manager
+after codex-plan-inspector (or its skip) completes.
