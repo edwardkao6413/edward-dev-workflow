@@ -2,6 +2,10 @@
 
 An AI-driven development workflow plugin for Claude Code. It orchestrates the full development lifecycle through a multi-stage gate system — from brainstorming and planning, through implementation and review, to finalization — using specialized agents that enforce quality at every transition.
 
+> **Best used with [Superpowers](https://github.com/grp-bork/superpowers).** This plugin is designed to run alongside the Superpowers plugin. Superpowers provides the foundational skill invocation system that this plugin's agents rely on — without it, you lose the automatic skill routing, parallel agent dispatch, and discipline enforcement that make the workflow effective. Install both to get the full development governance experience.
+>
+> For a detailed walkthrough of the development pipeline — stages, gates, agent routing, and transition rules — refer to [`skills/references/workflow.md`](skills/references/workflow.md).
+
 ---
 
 ## What It Does
@@ -15,6 +19,8 @@ An AI-driven development workflow plugin for Claude Code. It orchestrates the fu
 ---
 
 ## Installation
+
+> **Prerequisite:** Install the [Superpowers plugin](https://github.com/grp-bork/superpowers) first. It provides the skill invocation layer this plugin depends on.
 
 ### Option A — Via Claude Code (recommended)
 
