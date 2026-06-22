@@ -29,6 +29,32 @@ Trigger this skill whenever:
 
 ---
 
+## UI Change Detection
+
+**Before dispatching any subagent**, scan the plan for UI-related intent. Look for signals such as:
+
+- Changing, updating, or redesigning any user interface component
+- Optimising or polishing frontend layout, spacing, or visual hierarchy
+- Modifying styles, themes, colours, fonts, or CSS/Tailwind classes
+- Improving visual patterns, UX flows, or aesthetic appearance
+- Any mention of: `layout`, `design`, `style`, `theme`, `UI`, `UX`, `frontend`, `component`, `responsive`, `animation`, `visual`
+
+If **any** of these signals are present:
+
+> **Ask the user before proceeding:**
+>
+> _"This plan includes UI changes. Would you like me to spin up a localhost browser preview to showcase examples of the imagined changes before implementation begins? I can generate **3 examples** by default (you can request more or fewer). Just say yes/no or specify a number."_
+
+Wait for the user's response:
+- If **yes** (or a number is given): note the count (default = 3) and flag for post-inspection localhost preview generation.
+- If **no**: proceed directly to subagent dispatch.
+
+After generating all previews, **do not ask the user to choose**. Instead:
+
+> Review all generated examples yourself, reason about which one best matches the intent expressed in the user's plan or prompt, and **select it autonomously**. Present the chosen option to the user with a one-sentence rationale explaining why it best fits their vision — then proceed with that choice unless the user overrides it.
+
+---
+
 ## Pre-Dispatch Setup
 
 Before spawning any subagent, gather:
@@ -248,6 +274,12 @@ After all 3 subagents complete, present findings to the user in this order:
 - Resolve all [NEEDS USER INPUT] items before proceeding
 - Address High-severity risks before implementation begins
 - Confirm the revised plan replaces the original
+
+### UI Preview (if applicable)
+If the user confirmed localhost examples during the UI Change Detection step, generate the
+agreed number of browser-rendered previews (default = 3) via a localhost dev server.
+Each preview should visually realise one interpretation of the planned UI changes so the
+user can pick a direction before any code is committed.
 ```
 
 ---
