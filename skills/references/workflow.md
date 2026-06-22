@@ -138,6 +138,21 @@ CLAUDE.md: trigger phrase detected → re-read state.json
         │         │    YES → state.json: implementation_complete = true
         │         │
         │         ▼
+        │    dev-manager checks: frontend / UI editing detected?
+        │    ┌──────────────────────────────────────┐
+        │    │  Frontend task detected?              │
+        │    │    NO  → skip ui-designer silently   │
+        │    │    YES → ask user:                    │
+        │    │          "Would you like me to        │
+        │    │           generate UI examples?"      │
+        │    │          User approves?               │
+        │    │            NO  → skip                 │
+        │    │            YES → dispatch ui-designer │
+        │    │                  apply or adapt       │
+        │    │                  examples to codebase │
+        │    └──────────────────────────────────────┘
+        │         │
+        │         ▼
         │    ╔══════════════════════════════════╗
         │    ║          REVIEW STAGE            ║
         │    ╚══════════════════════════════════╝
@@ -232,6 +247,7 @@ CLAUDE.md: trigger phrase detected → re-read state.json
 | `subagent-driven-development` | Implementation | DEVELOPING | `dev-manager` | `dev-manager` |
 | `dispatching-parallel-agents` | Implementation | DEVELOPING | `subagent-driven-development` | `subagent-driven-development` |
 | `executing-plans` | Implementation | DEVELOPING | `dev-manager` (alt path) | `dev-manager` |
+| `ui-designer` | Implementation (conditional) | DEVELOPING | `dev-manager` — only when user is editing frontend UI **and** approves example generation | `dev-manager` |
 | `systematic-debugging` | **Floating** | ANY | CLAUDE.md trigger or `subagent-driven-development` | caller |
 | `karapathy-guideline` | Review | REVIEW | `dev-manager` | `dev-manager` |
 | `codebase-admin/codebase-orchestrator` | Review (optional) | REVIEW | `dev-manager` | `dev-manager` |
@@ -304,6 +320,9 @@ On any of the following, re-read `state.json` before acting:
 
 **Skill triggers (floating):**
 `create skill`, `write skill`, `improve skill`, `update skill`
+
+**UI triggers (conditional — prompts user for approval before dispatching `ui-designer`):**
+`UI`, `frontend`, `interface`, `component`, `layout`, `style`, `design`, `dashboard`, `landing page`, `web app`
 
 ---
 

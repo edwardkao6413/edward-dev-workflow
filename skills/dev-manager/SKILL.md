@@ -129,6 +129,7 @@ dispatch table. Summary:
 | `superpower/subagent-driven-development` | Dispatches fresh subagent per task with two-stage review |
 | `superpower/dispatching-parallel-agents` | Runs independent tasks concurrently (called by subagent-driven-development) |
 | `superpower/executing-plans` | Alternative to subagent-driven-development for inline execution |
+| `ui-designer` | Frontend UI implementation — engaged when user is editing or building a frontend interface and has approved example generation |
 
 **Review agents** (REVIEW stage only):
 | Agent | Role |
@@ -317,6 +318,7 @@ Example:
 
 | Situation | Action |
 |---|---|
+| User is editing frontend / UI and approves example generation | Engage `ui-designer` during DEVELOPING stage — ask user first: "Would you like me to generate UI examples for this?" — only dispatch on explicit approval |
 | Plan updated mid-implementation | Re-run plan-inspector; continue from DEVELOPING |
 | Agent returns revision requests | Stay in current stage; re-run same agent after fixes |
 | User says "skip plan-inspector" | Acknowledge; log skip in audit_trail; proceed to DEVELOPING |
