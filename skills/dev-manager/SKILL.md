@@ -446,6 +446,7 @@ Example:
 | User enters DEVELOPING without selecting a mode | Present mode choice; default to Codex if no answer |
 | User switches mode mid-implementation | Update `implementation_mode`; continue from current task |
 | Codex CLI not found and Codex mode selected | Warn user; offer to fall back to Claude mode or install Codex |
+| Codex returns token/quota exhaustion error | Auto-switch to Claude mode; resume remaining tasks via subagent-driven-development; do not re-run completed tasks |
 | User specifies GPT model (e.g. "use gpt-5.6") | Write model to `state.json → workflow.codex_model`; use in Codex mode |
 | brainstorming called directly by user | Acknowledge; run brainstorming; return to dev-manager flow |
 | writing-plans called without prior spec | Run brainstorming first (Path A); or proceed with user-provided context (Path B) |

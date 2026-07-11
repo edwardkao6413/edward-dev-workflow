@@ -186,6 +186,40 @@ outside the stated scope, even if you notice improvements.
   Options: retry | skip | escalate to user
   ```
 
+### Token exhaustion fallback
+
+If Codex returns any of the following (case-insensitive):
+- `"lack of token"`, `"out of tokens"`, `"token limit"`, `"context length exceeded"`,
+  `"maximum context"`, `"rate limit"`, `"quota exceeded"`, `"insufficient quota"`
+
+**Immediately switch to Claude development mode:**
+
+1. Announce to user:
+   ```
+   [codex-development] Codex token limit reached on task "<name>".
+   Switching to Claude development mode for remaining tasks.
+   ```
+2. Write to `state.json`:
+   ```json
+   {
+     "workflow": {
+       "implementation_mode": "claude",
+       "codex_fallback_reason": "token exhaustion at task <name>"
+     }
+   }
+   ```
+3. Append to `audit_trail`:
+   ```json
+   {
+     "agent": "codex-development",
+     "action": "Switched to Claude mode — Codex token exhaustion on task <name>.",
+     "stage_before": "DEVELOPING",
+     "stage_after": "DEVELOPING"
+   }
+   ```
+4. Hand off remaining tasks to dev-manager → dispatch `subagent-driven-development`
+   starting from the first incomplete task. Already-completed tasks are not re-run.
+
 ---
 
 ## 4. Spec-Reviewer Subagent
