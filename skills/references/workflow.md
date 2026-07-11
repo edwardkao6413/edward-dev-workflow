@@ -63,10 +63,33 @@ CLAUDE.md: trigger phrase detected → re-read state.json
         │    │                                       │
         │    │  Codex verdict?                       │
         │    │    APPROVE / SKIPPED                  │
+        │    │      → proceed to gemini inspector    │
+        │    │    REVISE → writing-plans revises     │
+        │    │             → plan-inspector reruns   │
+        │    │             → codex-plan-inspector    │
+        │    │             → gemini-plan-inspector   │
+        │    │    REJECT → escalate to user;         │
+        │    │             user decides: override    │
+        │    │             or revise                 │
+        │    └──────────────────────────────────────┘
+        │         │
+        │         ▼
+        │    dev-manager dispatches: gemini-plan-inspector (optional)
+        │    ┌──────────────────────────────────────┐
+        │    │  Skip conditions (any one = skip):    │
+        │    │    • user said "skip gemini",         │
+        │    │      "no gemini", or                  │
+        │    │      "skip gemini-plan-inspector"     │
+        │    │    • gemini CLI not on PATH           │
+        │    │  If skipped → log + continue          │
+        │    │                                       │
+        │    │  Gemini verdict?                      │
+        │    │    APPROVE / SKIPPED                  │
         │    │      → proceed to plan approval gate  │
         │    │    REVISE → writing-plans revises     │
         │    │             → plan-inspector reruns   │
         │    │             → codex-plan-inspector    │
+        │    │             → gemini-plan-inspector   │
         │    │    REJECT → escalate to user;         │
         │    │             user decides: override    │
         │    │             or revise                 │
@@ -257,6 +280,7 @@ CLAUDE.md: trigger phrase detected → re-read state.json
 | `writing-plans` | Planning | PLANNING | `dev-manager` (after brainstorming or on spec provided) | `dev-manager` |
 | `plan-inspector` | Planning | PLANNING | `dev-manager` | `dev-manager` |
 | `codex-plan-inspector` | Planning (optional) | PLANNING | `dev-manager` (after `plan-inspector`) | `dev-manager` |
+| `gemini-plan-inspector` | Planning (optional) | PLANNING | `dev-manager` (after `codex-plan-inspector`) | `dev-manager` |
 | `data-manager/*` | Planning (domain gate) | PLANNING | `dev-manager` | `dev-manager` |
 | `codex-development` | Implementation **(default)** | DEVELOPING | `dev-manager` when `implementation_mode == "codex"` | `dev-manager` |
 | `subagent-driven-development` | Implementation (Claude mode) | DEVELOPING | `dev-manager` when `implementation_mode == "claude"` | `dev-manager` |
@@ -375,6 +399,9 @@ dev-manager reads plan → runs plan-inspector
         │
         ▼
 dev-manager runs codex-plan-inspector (optional — skipped if user opted out or CLI absent)
+        │
+        ▼
+dev-manager runs gemini-plan-inspector (optional — skipped if user opted out or CLI absent)
         │
         ▼
 plan_approved = true → DEVELOPING unlocked

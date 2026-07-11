@@ -83,6 +83,7 @@ when the user provides a spec and asks to write a plan, OR when the plan needs r
 **After writing-plans returns:**
 → dev-manager immediately dispatches `plan-inspector`
 → then `codex-plan-inspector` (optional)
+→ then `gemini-plan-inspector` (optional)
 → then data-manager (if data domain)
 → then DEVELOPING stage unlock
 
@@ -161,6 +162,8 @@ dispatch table. Summary:
 | `superpower/brainstorming` | Clarifies intent, proposes approaches, writes spec — dev-manager governs trigger and output |
 | `superpower/writing-plans` | Writes full implementation plan from spec — dev-manager governs trigger and handoff |
 | `plan-inspector` | Validates plan logic before any code is touched |
+| `codex-plan-inspector` | External Codex CLI second opinion (optional — auto-dispatched after plan-inspector) |
+| `gemini-plan-inspector` | External Gemini CLI third opinion (optional — auto-dispatched after codex-plan-inspector) |
 | `data-manager/data-manager` | Validates plan for data domain fit (auto-skips on non-data projects) |
 
 **Implementation agents** (DEVELOPING stage only — see Section 4b for mode selection):
@@ -207,6 +210,9 @@ plan-inspector (dev-manager dispatches)
         │ approved
         ▼
 codex-plan-inspector (optional — skipped if opted out or CLI absent)
+        │ approved / skipped
+        ▼
+gemini-plan-inspector (optional — skipped if opted out or CLI absent)
         │ approved / skipped
         ▼
 data-manager (if data domain detected via any path — else skip silently)
@@ -431,6 +437,8 @@ Example:
 | Plan updated mid-implementation | Re-run plan-inspector; continue from DEVELOPING |
 | Agent returns revision requests | Stay in current stage; re-run same agent after fixes |
 | User says "skip plan-inspector" | Acknowledge; log skip in audit_trail; proceed to DEVELOPING |
+| User says "skip gemini" / "no gemini" | Skip gemini-plan-inspector; log in audit_trail; continue to data-manager / DEVELOPING |
+| Gemini CLI not found | Skip gemini-plan-inspector silently; log in audit_trail; continue |
 | User says "skip evals" | Warn once; respect choice; log it |
 | User calls agent out of sequence | Warn once; then respect user choice |
 | Multiple files/modules changed | karapathy-guideline reviews all; evals across all affected modules |
