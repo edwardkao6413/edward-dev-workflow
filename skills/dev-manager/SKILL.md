@@ -3,9 +3,10 @@ name: dev-manager
 description: >
   Orchestrates which agent activates, in what order, and under what conditions across
   the full development workflow. ALWAYS use this skill when any of the following occur:
-  a plan is being made or finalized; any script, codebase, or document is about to be
-  created or edited; any agent needs to be sequenced or dispatched; the user asks what
-  the next step is or which agent should run; a task phase needs to be identified.
+  a plan is being made or finalized; brainstorming or spec writing is requested;
+  any script, codebase, or document is about to be created or edited; any agent needs
+  to be sequenced or dispatched; the user asks what the next step is or which agent
+  should run; a task phase needs to be identified.
   Also triggers when the user directly calls any agent by name, or asks "what stage
   are we in?". Use this even for small fixes — the skill determines whether a full
   workflow or the short path is appropriate.
@@ -45,6 +46,45 @@ whenever you are unsure which agent to dispatch next.
 ## 2. Stage Detection
 
 Read `state.json → workflow.stage`. If missing, infer from context:
+
+---
+
+## 2a. Planning Stage Governance
+
+Dev-manager governs both `brainstorming` and `writing-plans` — they never self-activate.
+
+### When to dispatch brainstorming
+
+Dispatch `superpower/brainstorming` when **any** of these apply:
+- User asks to build, design, create, or add a feature and intent/requirements are unclear
+- User says "brainstorm", "explore options", "what should we do about X"
+- This is Path A (full workflow) and no spec exists yet
+
+**Brainstorming output contract:**
+- Produces a spec document saved to `.dev-manager/plans/spec-<task>.md`
+- Updates `state.json → workflow.stage = PLANNING`
+- Returns control to dev-manager on completion
+
+**Do not dispatch brainstorming if:**
+- A spec or plan already exists and the user did not ask to revise it
+- This is Path B (small fix) — go directly to implementation
+- User explicitly says "skip brainstorming"
+
+### When to dispatch writing-plans
+
+Dispatch `superpower/writing-plans` immediately after brainstorming completes, OR
+when the user provides a spec and asks to write a plan, OR when the plan needs revision.
+
+**Writing-plans output contract:**
+- Produces a full implementation plan saved to `.dev-manager/plans/plan-<task>.md`
+- Sets `state.json → gates.plan_approved = false` (pending plan-inspector)
+- Returns control to dev-manager on completion
+
+**After writing-plans returns:**
+→ dev-manager immediately dispatches `plan-inspector`
+→ then `codex-plan-inspector` (optional)
+→ then data-manager (if data domain)
+→ then DEVELOPING stage unlock
 
 ---
 
@@ -118,17 +158,18 @@ dispatch table. Summary:
 **Planning agents** (PLANNING stage only):
 | Agent | Role |
 |---|---|
-| `superpower/brainstorming` | Clarifies intent, proposes approaches, writes spec |
-| `superpower/writing-plans` | Writes full implementation plan from spec |
+| `superpower/brainstorming` | Clarifies intent, proposes approaches, writes spec — dev-manager governs trigger and output |
+| `superpower/writing-plans` | Writes full implementation plan from spec — dev-manager governs trigger and handoff |
 | `plan-inspector` | Validates plan logic before any code is touched |
 | `data-manager/data-manager` | Validates plan for data domain fit (auto-skips on non-data projects) |
 
-**Implementation agents** (DEVELOPING stage only):
+**Implementation agents** (DEVELOPING stage only — see Section 4b for mode selection):
 | Agent | Role |
 |---|---|
-| `superpower/subagent-driven-development` | Dispatches fresh subagent per task with two-stage review |
-| `superpower/dispatching-parallel-agents` | Runs independent tasks concurrently (called by subagent-driven-development) |
-| `superpower/executing-plans` | Alternative to subagent-driven-development for inline execution |
+| `superpower/subagent-driven-development` | Claude-mode: dispatches fresh subagent per task with two-stage review |
+| `superpower/dispatching-parallel-agents` | Claude-mode: runs independent tasks concurrently (called by subagent-driven-development) |
+| `superpower/executing-plans` | Claude-mode: alternative inline execution path |
+| `codex-development` | **Codex-mode (default)**: hands implementation to Codex CLI (GPT-5.5 by default); mirrors the full per-task loop |
 | `ui-designer` | Frontend UI implementation — engaged when user is editing or building a frontend interface and has approved example generation |
 
 **Review agents** (REVIEW stage only):
@@ -214,6 +255,74 @@ User explicitly names an agent:
 1. Confirm current stage from `state.json`
 2. Run the requested agent
 3. After completion remind user which agents still remain in the sequence
+
+---
+
+## 4b. DEVELOPING Stage — Implementation Mode Selection
+
+At the start of every DEVELOPING stage, **before dispatching any implementation agent**,
+dev-manager must present the user with a mode choice (unless a mode is already stored
+in `state.json → workflow.implementation_mode`):
+
+```
+How would you like to implement the plan?
+
+  [1] Codex development (default) — hands each task to Codex CLI running GPT-5.5.
+      Mirrors the full per-task loop (parallel dispatch, debugging, spec-review,
+      quality-review) but runs inside the Codex runtime.
+
+  [2] Claude development — Claude executes directly using subagent-driven-development
+      (dispatching-parallel-agents + systematic-debugging + spec/quality reviewers).
+
+Press 1 or 2 (default: 1):
+```
+
+**Default:** If the user presses Enter or does not respond, select **Codex development (1)**.
+
+After the user responds (or defaults), write to `state.json`:
+
+```json
+{
+  "workflow": {
+    "implementation_mode": "codex"   // or "claude"
+  }
+}
+```
+
+### Mode: Codex development
+
+Dispatch `codex-development` skill.
+
+The skill handles the full per-task loop internally via Codex CLI:
+- Model priority: **GPT-5.5** by default → fall back to GPT-5.4 if 5.5 unavailable
+- If user specifies `gpt-5.6` (or any explicit model): use that model exactly
+- The same loop structure applies: independent tasks → parallel; dependent → serial;
+  breaks → systematic-debugging; then spec-reviewer → code-quality-reviewer per task
+- All gate updates (`implementation_complete`, audit trail) still go through dev-manager
+
+### Mode: Claude development
+
+Dispatch `superpower/subagent-driven-development` (existing behavior, unchanged).
+
+### Model shorthand resolution (Codex mode only)
+
+| User says | Model passed to Codex |
+|---|---|
+| *(nothing / default)* | `gpt-5.5` |
+| `gpt-5.4`, `5.4` | `gpt-5.4` |
+| `gpt-5.5`, `5.5` | `gpt-5.5` |
+| `gpt-5.6`, `5.6` | `gpt-5.6` |
+| any other explicit model | use as-is |
+
+Write the resolved model to `state.json → workflow.codex_model` for the session.
+
+### Re-selecting mode mid-session
+
+If the user says "switch to Claude development" or "switch to Codex development"
+at any point during DEVELOPING:
+1. Update `state.json → workflow.implementation_mode`
+2. Announce the switch
+3. Continue from the current task — do not restart completed tasks
 
 ---
 
@@ -334,6 +443,12 @@ Example:
 | data-manager requests plan revisions | Route back to writing-plans → plan-inspector → data-manager cycle |
 | data-manager sub-agent blocked | Surface to user; do not begin implementation until resolved |
 | codebase-orchestrator finds critical issues | Surface to user; offer rollback or fix-forward before proceeding |
+| User enters DEVELOPING without selecting a mode | Present mode choice; default to Codex if no answer |
+| User switches mode mid-implementation | Update `implementation_mode`; continue from current task |
+| Codex CLI not found and Codex mode selected | Warn user; offer to fall back to Claude mode or install Codex |
+| User specifies GPT model (e.g. "use gpt-5.6") | Write model to `state.json → workflow.codex_model`; use in Codex mode |
+| brainstorming called directly by user | Acknowledge; run brainstorming; return to dev-manager flow |
+| writing-plans called without prior spec | Run brainstorming first (Path A); or proceed with user-provided context (Path B) |
 
 ---
 

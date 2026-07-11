@@ -103,38 +103,52 @@ CLAUDE.md: trigger phrase detected → re-read state.json
         │    ╚══════════════════════════════════╝
         │         │
         │         ▼
-        │    dev-manager dispatches: subagent-driven-development
+        │    dev-manager: IMPLEMENTATION MODE SELECTION
+        │    ┌──────────────────────────────────────────────────────┐
+        │    │  Present choice to user (default = Codex):           │
+        │    │    [1] Codex development (default) — GPT-5.5         │
+        │    │    [2] Claude development — subagent-driven          │
+        │    │                                                      │
+        │    │  Write to state.json:                                │
+        │    │    workflow.implementation_mode = "codex"|"claude"   │
+        │    │    workflow.codex_model = resolved model             │
+        │    └──────────────────────────────────────────────────────┘
         │         │
-        │         │  ┌─── Per-task loop ───────────────────────────────┐
-        │         │  │                                                  │
-        │         │  │  Are tasks independent?                          │
-        │         │  │    YES → dispatching-parallel-agents             │
-        │         │  │           runs tasks concurrently                │
-        │         │  │    NO  → implementer subagent (serial)           │
-        │         │  │                    │                             │
-        │         │  │                    ▼                             │
-        │         │  │  Something breaks / unexpected output?           │
-        │         │  │    YES → ┌── systematic-debugging ──┐           │
-        │         │  │          │  diagnose root cause      │           │
-        │         │  │          │  fix found?               │           │
-        │         │  │          │    YES → resume task ◄───-┘           │
-        │         │  │          │    NO  → escalate to user             │
-        │         │  │          └───────────────────────────            │
-        │         │  │    NO  → continue                                │
-        │         │  │                    │                             │
-        │         │  │                    ▼                             │
-        │         │  │  spec-reviewer subagent                          │
-        │         │  │  (confirms code matches spec)                    │
-        │         │  │         │                                        │
-        │         │  │         ▼                                        │
-        │         │  │  code-quality-reviewer subagent                  │
-        │         │  │  (karapathy-style quality check per task)        │
-        │         │  │         │                                        │
-        │         │  │         ▼                                        │
-        │         │  │  task complete → next task                       │
-        │         │  └──────────────────────────────────────────────────┘
-        │         │
-        │         │  All tasks done?
+        │         ├─── Codex mode ──────────────────────────────────┐
+        │         │    dev-manager dispatches: codex-development     │
+        │         │    (GPT-5.5 default; 5.4 fallback; explicit      │
+        │         │     model if user specified 5.6 or other)        │
+        │         │                                                  │
+        │         └─── Claude mode ──────────────────────────────────┤
+        │              dev-manager dispatches: subagent-driven-dev   │
+        │                                                            │
+        │         Both paths use the same per-task loop:             │
+        │         │  ┌─── Per-task loop ──────────────────────────┐  │
+        │         │  │                                            │  │
+        │         │  │  Are tasks independent?                    │  │
+        │         │  │    YES → parallel dispatch                 │  │
+        │         │  │    NO  → serial dispatch                   │  │
+        │         │  │                    │                       │  │
+        │         │  │                    ▼                       │  │
+        │         │  │  Something breaks / unexpected output?     │  │
+        │         │  │    YES → systematic-debugging              │  │
+        │         │  │           fix? YES → resume                │  │
+        │         │  │                NO  → escalate              │  │
+        │         │  │    NO  → continue                          │  │
+        │         │  │                    │                       │  │
+        │         │  │                    ▼                       │  │
+        │         │  │  spec-reviewer subagent                    │  │
+        │         │  │  (confirms output matches spec)            │  │
+        │         │  │         │                                  │  │
+        │         │  │         ▼                                  │  │
+        │         │  │  code-quality-reviewer subagent            │  │
+        │         │  │  (karapathy-style quality check)           │  │
+        │         │  │         │                                  │  │
+        │         │  │         ▼                                  │  │
+        │         │  │  task complete → next task                 │  │
+        │         │  └────────────────────────────────────────────┘  │
+        │         │                                                   │
+        │         │  All tasks done?                                  │
         │         │    YES → state.json: implementation_complete = true
         │         │
         │         ▼
@@ -239,23 +253,24 @@ CLAUDE.md: trigger phrase detected → re-read state.json
 
 | Agent | Category | Stage | Dispatched by | Returns to |
 |---|---|---|---|---|
-| `brainstorming` | Planning | PLANNING | CLAUDE.md trigger | `writing-plans` |
-| `writing-plans` | Planning | PLANNING | `brainstorming` | `dev-manager` |
+| `brainstorming` | Planning | PLANNING | `dev-manager` (trigger: intent unclear or Path A start) | `writing-plans` via `dev-manager` |
+| `writing-plans` | Planning | PLANNING | `dev-manager` (after brainstorming or on spec provided) | `dev-manager` |
 | `plan-inspector` | Planning | PLANNING | `dev-manager` | `dev-manager` |
 | `codex-plan-inspector` | Planning (optional) | PLANNING | `dev-manager` (after `plan-inspector`) | `dev-manager` |
 | `data-manager/*` | Planning (domain gate) | PLANNING | `dev-manager` | `dev-manager` |
-| `subagent-driven-development` | Implementation | DEVELOPING | `dev-manager` | `dev-manager` |
-| `dispatching-parallel-agents` | Implementation | DEVELOPING | `subagent-driven-development` | `subagent-driven-development` |
+| `codex-development` | Implementation **(default)** | DEVELOPING | `dev-manager` when `implementation_mode == "codex"` | `dev-manager` |
+| `subagent-driven-development` | Implementation (Claude mode) | DEVELOPING | `dev-manager` when `implementation_mode == "claude"` | `dev-manager` |
+| `dispatching-parallel-agents` | Implementation | DEVELOPING | `subagent-driven-development` (Claude mode) | `subagent-driven-development` |
 | `executing-plans` | Implementation | DEVELOPING | `dev-manager` (alt path) | `dev-manager` |
 | `ui-designer` | Implementation (conditional) | DEVELOPING | `dev-manager` — only when user is editing frontend UI **and** approves example generation | `dev-manager` |
-| `systematic-debugging` | **Floating** | ANY | CLAUDE.md trigger or `subagent-driven-development` | caller |
+| `systematic-debugging` | **Floating** | ANY | `dev-manager`, `subagent-driven-development`, or `codex-development` | caller |
 | `karapathy-guideline` | Review | REVIEW | `dev-manager` | `dev-manager` |
 | `codebase-admin/codebase-orchestrator` | Review (optional) | REVIEW | `dev-manager` | `dev-manager` |
 | `requesting-code-review` | Review | REVIEW | `dev-manager` | `dev-manager` |
 | `receiving-code-review` | Review | REVIEW | `dev-manager` | `dev-manager` |
 | `system-checker` | Review | REVIEW | `dev-manager` | `dev-manager` |
 | `verification-before-completion` | Review (final) | REVIEW | `dev-manager` | closes task |
-| `writing-skills` | **Floating** | ANY | CLAUDE.md trigger | caller |
+| `writing-skills` | **Floating** | ANY | `dev-manager` trigger | caller |
 
 ---
 
@@ -276,6 +291,27 @@ User explicitly calls an agent by name → Path C
          run that agent
          remind user which agents still remain in the workflow
 ```
+
+### Implementation Mode (applies to all paths that enter DEVELOPING)
+
+At the DEVELOPING stage entry point, dev-manager always presents mode selection:
+
+```
+  [1] Codex development (default) — Codex CLI with GPT-5.5
+  [2] Claude development — subagent-driven-development
+```
+
+Default on no answer: **Codex (1)**.
+
+Model resolution for Codex mode:
+- No preference → `gpt-5.5`
+- User says `gpt-5.4` → `gpt-5.4`
+- User says `gpt-5.5` → `gpt-5.5`
+- User says `gpt-5.6` → `gpt-5.6`
+- Any other explicit model → use as-is
+
+Both modes use the same per-task loop structure:
+parallel/serial dispatch → systematic-debugging → spec-reviewer → code-quality-reviewer
 
 ---
 
