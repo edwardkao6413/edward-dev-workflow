@@ -182,7 +182,8 @@ dispatch table. Summary:
 | `codebase-admin/codebase-orchestrator` | Cross-file structural integrity (optional — enable in active_agents) |
 | `superpower/requesting-code-review` | Generates structured review request for user |
 | `superpower/receiving-code-review` | Processes user review feedback |
-| `system-checker` | End-to-end system validation |
+| `system-checker` | End-to-end system validation (default — always runs) |
+| `codex-system-checker` | Codex CLI second-opinion system validation (optional — runs after system-checker) |
 | `superpower/verification-before-completion` | Final gate — evidence-based completion check |
 
 **Floating agents** (any stage — interrupt and return):
@@ -232,8 +233,11 @@ codebase-orchestrator (if enabled in active_agents)
 requesting-code-review → [user responds] → receiving-code-review
         │
         ▼
-system-checker
+system-checker (default — always runs)
         │ approved
+        ▼
+codex-system-checker (optional — skipped if opted out or CLI absent)
+        │ approved / skipped
         ▼
 verification-before-completion
         │ passed
@@ -439,6 +443,10 @@ Example:
 | User says "skip plan-inspector" | Acknowledge; log skip in audit_trail; proceed to DEVELOPING |
 | User says "skip gemini" / "no gemini" | Skip gemini-plan-inspector; log in audit_trail; continue to data-manager / DEVELOPING |
 | Gemini CLI not found | Skip gemini-plan-inspector silently; log in audit_trail; continue |
+| User says "skip codex system check" / "no codex system check" | Skip codex-system-checker; log in audit_trail; advance to verification-before-completion |
+| Codex CLI not found (REVIEW stage) | Skip codex-system-checker silently; log in audit_trail; continue |
+| codex-system-checker returns ISSUES FOUND | Present findings; await user decision before advancing |
+| codex-system-checker returns ESCALATE | Surface to user; do not auto-advance to verification-before-completion |
 | User says "skip evals" | Warn once; respect choice; log it |
 | User calls agent out of sequence | Warn once; then respect user choice |
 | Multiple files/modules changed | karapathy-guideline reviews all; evals across all affected modules |

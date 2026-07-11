@@ -230,12 +230,29 @@ CLAUDE.md: trigger phrase detected → re-read state.json
         │    (processes user feedback → fixes applied if needed)
         │         │
         │         ▼
-        │    dev-manager dispatches: system-checker
+        │    dev-manager dispatches: system-checker (default — always runs)
         │    ┌──────────────────────────────────────┐
         │    │  Issues found?                        │
         │    │    YES → implementer fixes            │
         │    │          back to system-checker       │
         │    │    NO  → approved                     │
+        │    └──────────────────────────────────────┘
+        │         │
+        │         ▼
+        │    dev-manager dispatches: codex-system-checker (optional)
+        │    ┌──────────────────────────────────────┐
+        │    │  Skip conditions (any one = skip):    │
+        │    │    • user said "skip codex system     │
+        │    │      check" or "no codex system check"│
+        │    │    • Codex CLI not on PATH            │
+        │    │  If skipped → log + continue          │
+        │    │                                       │
+        │    │  Verdict?                             │
+        │    │    PASS / FIXED / SKIPPED             │
+        │    │      → proceed                        │
+        │    │    ISSUES FOUND → await user decision │
+        │    │    ESCALATE → surface to user;        │
+        │    │               do not auto-advance     │
         │    └──────────────────────────────────────┘
         │         │
         │         ▼
@@ -292,7 +309,8 @@ CLAUDE.md: trigger phrase detected → re-read state.json
 | `codebase-admin/codebase-orchestrator` | Review (optional) | REVIEW | `dev-manager` | `dev-manager` |
 | `requesting-code-review` | Review | REVIEW | `dev-manager` | `dev-manager` |
 | `receiving-code-review` | Review | REVIEW | `dev-manager` | `dev-manager` |
-| `system-checker` | Review | REVIEW | `dev-manager` | `dev-manager` |
+| `system-checker` | Review **(default)** | REVIEW | `dev-manager` | `dev-manager` |
+| `codex-system-checker` | Review (optional) | REVIEW | `dev-manager` (after `system-checker`) | `dev-manager` |
 | `verification-before-completion` | Review (final) | REVIEW | `dev-manager` | closes task |
 | `writing-skills` | **Floating** | ANY | `dev-manager` trigger | caller |
 
