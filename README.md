@@ -1,49 +1,99 @@
 # edward-dev-workflow
 
-An AI-driven development workflow plugin for Claude Code. It orchestrates the full development lifecycle through a multi-stage gate system — from brainstorming and planning, through implementation and review, to finalization — using specialized agents that enforce quality at every transition.
+An AI-driven development workflow plugin for both Codex and Claude Code. It
+orchestrates the development lifecycle through planning, implementation, review,
+and finalization gates.
 
-> **Best used with [Superpowers](https://github.com/grp-bork/superpowers).** This plugin is designed to run alongside the Superpowers plugin. Superpowers provides the foundational skill invocation system that this plugin's agents rely on — without it, you lose the automatic skill routing, parallel agent dispatch, and discipline enforcement that make the workflow effective. Install both to get the full development governance experience.
->
-> For a detailed walkthrough of the development pipeline — stages, gates, agent routing, and transition rules — refer to [`skills/references/workflow.md`](skills/references/workflow.md).
+This plugin is a workflow layer. It relies on
+[Superpowers](https://github.com/obra/superpowers) for the general-purpose
+process skills: brainstorming, writing plans, subagent-driven development,
+systematic debugging, TDD, code review, and completion verification.
+
+For the detailed pipeline, see
+[`skills/references/workflow.md`](skills/references/workflow.md).
 
 ---
 
 ## What It Does
 
-- **Orchestrates every stage** of development: PLANNING → DEVELOPING → REVIEW → FINALIZED
-- **Enforces quality gates** — no code before a plan, no merge before review passes
-- **Routes to domain specialists** for data engineering, analytics, data science, and database work
-- **Supports parallel agent dispatch** for independent tasks
-- **Provides discipline skills** for TDD, debugging, code review, and git worktrees
+- Orchestrates stages: `PLANNING -> DEVELOPING -> REVIEW -> FINALIZED`
+- Enforces quality gates before implementation and finalization
+- Routes data-heavy projects to specialist data agents
+- Uses Superpowers for parallel/subagent execution where the host supports it
+- Keeps project workflow state in `.dev-manager/state.json`
 
 ---
 
-## Installation
+## Prerequisite: Superpowers
 
-> **Prerequisite:** Install the [Superpowers plugin](https://github.com/grp-bork/superpowers) first. It provides the skill invocation layer this plugin depends on.
+Install Superpowers before using this plugin.
 
-### Option A — Via Claude Code (recommended)
+### Codex
 
-Run these two commands inside Claude Code:
+Install Superpowers from Codex:
 
+```text
+/plugins
 ```
+
+Search for `Superpowers`, install it, then start a new Codex task.
+
+For Superpowers subagent workflows in Codex, enable multi-agent support in
+`~/.codex/config.toml`:
+
+```toml
+[features]
+multi_agent = true
+```
+
+If a `[features]` block already exists, add `multi_agent = true` inside that
+existing block rather than creating a second `[features]` block.
+
+### Claude Code
+
+Install Superpowers using the instructions from the
+[Superpowers repository](https://github.com/obra/superpowers). This plugin's
+Claude workflow assumes those skills are available.
+
+---
+
+## Installing This Plugin
+
+### Codex
+
+This repository includes Codex packaging at:
+
+```text
+.codex-plugin/plugin.json
+```
+
+For local development, place or clone this repository where your Codex personal
+plugin marketplace can reference it, then install it through Codex's plugin
+browser. A repo-local `.agents/` marketplace is not required for the plugin
+itself; it is only an optional distribution mechanism.
+
+### Claude Code
+
+This repository keeps Claude packaging at:
+
+```text
+.claude-plugin/plugin.json
+.claude-plugin/marketplace.json
+```
+
+Install from Claude Code:
+
+```text
 /plugin marketplace add edwardkao6413/edward-dev-workflow
 /plugin install edward-dev-workflow@edward-dev-workflow
 ```
 
-The first command registers this repo as a plugin source. The second installs the plugin.
+For a local clone:
 
-### Option B — Local (Git Clone)
-
-1. Clone this repo:
-   ```
-   git clone https://github.com/edwardkao6413/edward-dev-workflow.git
-   ```
-2. In Claude Code, run:
-   ```
-   /plugin marketplace add /path/to/edward-workflow
-   /plugin install edward-dev-workflow@edward-dev-workflow
-   ```
+```text
+/plugin marketplace add /path/to/edward-workflow
+/plugin install edward-dev-workflow@edward-dev-workflow
+```
 
 ---
 
@@ -51,68 +101,62 @@ The first command registers this repo as a plugin source. The second installs th
 
 Once installed, start any new project with:
 
+```text
+edward-dev-workflow:init-project
 ```
+
+In Claude Code this may be available as a slash command:
+
+```text
 /edward-dev-workflow:init-project
 ```
 
-This scaffolds the full governance structure (`.dev-manager/`, `project.config.md`, `state.json`) into your project and hands control to `dev-manager` to begin work.
+This scaffolds `.dev-manager/`, `project.config.md`, state, checklist, and
+workflow reference files, then hands control to `dev-manager`.
 
 ---
 
 ## Skills
 
 ### Orchestration
+
 | Skill | Purpose |
-|-------|---------|
-| `dev-manager` | Central orchestrator — governs all stage transitions and agent dispatch |
-| `init-project` | Scaffolds governance files into a new project |
+|---|---|
+| `dev-manager` | Central orchestrator for stages, gates, and specialist dispatch |
+| `init-project` | Scaffolds governance files into a project |
 | `plan-inspector` | Validates implementation plans before development begins |
-| `system-checker` | End-to-end system validation after implementation |
+| `system-checker` | Runs end-to-end validation after implementation |
 
-### Planning
-| Skill | Purpose |
-|-------|---------|
-| `brainstorming` | Turns ideas into fully-formed specs through collaborative dialogue |
-| `writing-plans` | Generates detailed implementation plans from approved specs |
+### Edward Workflow Specialists
 
-### Implementation
 | Skill | Purpose |
-|-------|---------|
-| `subagent-driven-development` | Dispatches fresh subagents per task with two-stage review |
+|---|---|
+| `data-manager` | Routes data projects to the right specialist |
+| `data-engineer` | Data pipeline and ETL validation |
+| `data-analyst` | Analytics and reporting specialist |
+| `data-scientist` | ML/statistical modeling specialist |
+| `database-optimizer` | Database performance specialist |
+| `codebase-orchestrator` | Cross-file structural validation |
+| `ui-designer` | Frontend/UI implementation support |
+| `karpathy-guidelines` | Code quality review principles |
+
+### Superpowers Skills Used By This Plugin
+
+These are provided by the separate Superpowers plugin:
+
+| Superpowers skill | Purpose |
+|---|---|
+| `brainstorming` | Turns ideas into specs |
+| `writing-plans` | Generates implementation plans |
+| `subagent-driven-development` | Dispatches fresh subagents per task |
 | `dispatching-parallel-agents` | Runs independent tasks concurrently |
 | `executing-plans` | Inline execution path for simpler plans |
-| `using-git-worktrees` | Isolates feature work via git worktrees |
-
-### Review & Quality
-| Skill | Purpose |
-|-------|---------|
-| `karapathy-guideline` | Per-file code quality review |
-| `requesting-code-review` | Generates structured review requests |
-| `receiving-code-review` | Handles review feedback with technical rigor |
-| `verification-before-completion` | Runs verification before claiming work is done |
-| `finishing-a-development-branch` | Guides branch integration decisions |
-
-### Debugging & Testing
-| Skill | Purpose |
-|-------|---------|
-| `systematic-debugging` | Root cause investigation before any fix |
-| `test-driven-development` | Enforces RED-GREEN-REFACTOR discipline |
-
-### Domain Specialists
-| Skill | Purpose |
-|-------|---------|
-| `data-manager` | Routes data projects to the correct specialist |
-| `data-engineer` | Data pipeline and ETL validation |
-| `data-analyst` | Analytics and reporting domain specialist |
-| `data-scientist` | ML/model domain specialist |
-| `database-optimizer` | Database performance specialist |
-| `codebase-admin` | Structural validation for large codebases |
-
-### Meta
-| Skill | Purpose |
-|-------|---------|
-| `writing-skills` | TDD-based skill authoring and testing |
-| `using-superpowers` | Master skill — when and how to invoke all others |
+| `systematic-debugging` | Root cause investigation before fixes |
+| `test-driven-development` | Red-green-refactor discipline |
+| `requesting-code-review` | Structured code-review request |
+| `receiving-code-review` | Processes review feedback |
+| `verification-before-completion` | Evidence-based completion check |
+| `finishing-a-development-branch` | Branch integration and handoff guidance |
 
 ---
 

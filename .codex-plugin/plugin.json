@@ -1,0 +1,45 @@
+{
+  "name": "edward-dev-workflow",
+  "version": "1.1.0",
+  "description": "AI-driven development workflow with multi-stage gates, domain specialists, and orchestrated agent dispatch.",
+  "author": {
+    "name": "Edward Kao",
+    "email": "edwardkao6413@gmail.com",
+    "url": "https://github.com/edwardkao6413"
+  },
+  "homepage": "https://github.com/edwardkao6413/edward-dev-workflow",
+  "repository": "https://github.com/edwardkao6413/edward-dev-workflow",
+  "license": "MIT",
+  "keywords": [
+    "development-workflow",
+    "planning",
+    "quality-gates",
+    "data-science",
+    "codex",
+    "claude",
+    "superpowers"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Edward Dev Workflow",
+    "shortDescription": "Stage-gated development workflow for Codex and Claude",
+    "longDescription": "Adds Edward's development workflow on top of Superpowers: planning gates, implementation governance, specialist data-domain review, and final verification. Install Superpowers separately for brainstorming, planning, subagent dispatch, debugging, and completion workflows.",
+    "developerName": "Edward Kao",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/edwardkao6413/edward-dev-workflow",
+    "privacyPolicyURL": "https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement",
+    "termsOfServiceURL": "https://docs.github.com/en/site-policy/github-terms/github-terms-of-service",
+    "defaultPrompt": [
+      "Initialize Edward's workflow for this project.",
+      "Use dev-manager to plan this change.",
+      "Review this implementation with Edward's gates."
+    ],
+    "brandColor": "#2563EB",
+    "screenshots": []
+  }
+}
