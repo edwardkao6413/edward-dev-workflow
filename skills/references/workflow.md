@@ -1,572 +1,268 @@
 # Dev-Manager Workflow
 
-This is the **authoritative reference** for the entire agent orchestration system.
+This file is copied into `.dev-manager/workflow.md` by `init-project`.
 
-- Read by: dev-manager, all Superpower agents (via their DEV-MANAGER-GATE sections), Claude (fallback mode)
-- Referenced by: `CLAUDE.md` Sections 1–4, all SKILL.md governance sections
-- Project-agnostic — do not modify this file per project
-- Project-specific notes belong in `state.json → project.notes`
+Read by: `dev-manager`, this plugin's skills, and Superpowers skills when
+installed. Project-specific notes belong in `.dev-manager/state.json ->
+project.notes`.
 
 ---
 
 ## 1. Stages
 
-| Stage | Meaning | Entry condition |
+| Stage | Meaning | Required gate |
 |---|---|---|
-| `PLANNING` | Spec and plan being written; no code touched | Default on project start |
-| `DEVELOPING` | Code/scripts/docs being created or edited | `gates.plan_approved = true` |
-| `REVIEW` | Implementation declared done; agents sign off | `gates.implementation_complete = true` |
-| `FINALIZED` | All gates passed; task closed | All review gates passed |
+| `PLANNING` | Spec and implementation plan are being created or reviewed | none |
+| `DEVELOPING` | Code/scripts/docs are being created or edited | `gates.plan_approved = true` |
+| `REVIEW` | Implementation is complete; reviewers and system checks run | `gates.implementation_complete = true` |
+| `FINALIZED` | All review gates passed and the task is closed | `gates.final_evals_passed = true` and `gates.task_closed = true` |
 
-**No agent may advance the stage without dev-manager updating `state.json` first.**
+Only `dev-manager` may advance `workflow.stage`.
 
 ---
 
-## 2. Complete Trigger Chain
+## 2. Core Flow
 
-```
-User request arrives
-        │
-        ▼
-CLAUDE.md: trigger phrase detected → re-read state.json
-        │
-        ├── "plan", "design", "feature", "build", "create"
-        │         ▼
-        │    ╔══════════════════════════════════╗
-        │    ║         PLANNING STAGE           ║
-        │    ╚══════════════════════════════════╝
-        │         │
-        │         ▼
-        │    brainstorming
-        │    (clarify intent → propose approaches → write spec)
-        │    saves spec → .dev-manager/plans/
-        │    updates state.json: stage = PLANNING
-        │         │
-        │         ▼
-        │    writing-plans
-        │    (reads spec → writes full plan with exact code,
-        │     test commands, commit steps)
-        │    saves plan → .dev-manager/plans/
-        │    updates state.json: plan_approved = false
-        │         │
-        │         ▼
-        │    dev-manager dispatches: plan-inspector
-        │         │
-        │         ▼
-        │    dev-manager dispatches: codex-plan-inspector (optional)
-        │    ┌──────────────────────────────────────┐
-        │    │  Skip conditions (any one = skip):    │
-        │    │    • user said "not dispatch",        │
-        │    │      "skip codex", or "no codex"      │
-        │    │    • codex CLI not on PATH            │
-        │    │  If skipped → log + continue          │
-        │    │                                       │
-        │    │  Codex verdict?                       │
-        │    │    APPROVE / SKIPPED                  │
-        │    │      → proceed to gemini inspector    │
-        │    │    REVISE → writing-plans revises     │
-        │    │             → plan-inspector reruns   │
-        │    │             → codex-plan-inspector    │
-        │    │             → gemini-plan-inspector   │
-        │    │    REJECT → escalate to user;         │
-        │    │             user decides: override    │
-        │    │             or revise                 │
-        │    └──────────────────────────────────────┘
-        │         │
-        │         ▼
-        │    dev-manager dispatches: gemini-plan-inspector (optional)
-        │    ┌──────────────────────────────────────┐
-        │    │  Skip conditions (any one = skip):    │
-        │    │    • user said "skip gemini",         │
-        │    │      "no gemini", or                  │
-        │    │      "skip gemini-plan-inspector"     │
-        │    │    • gemini CLI not on PATH           │
-        │    │  If skipped → log + continue          │
-        │    │                                       │
-        │    │  Gemini verdict?                      │
-        │    │    APPROVE / SKIPPED                  │
-        │    │      → proceed to plan approval gate  │
-        │    │    REVISE → writing-plans revises     │
-        │    │             → plan-inspector reruns   │
-        │    │             → codex-plan-inspector    │
-        │    │             → gemini-plan-inspector   │
-        │    │    REJECT → escalate to user;         │
-        │    │             user decides: override    │
-        │    │             or revise                 │
-        │    └──────────────────────────────────────┘
-        │    ┌──────────────────────────────────────┐
-        │    │  Plan approved?                       │
-        │    │    NO  → writing-plans revises        │
-        │    │          back to plan-inspector       │
-        │    │    YES → state.json:                  │
-        │    │          plan_approved = true         │
-        │    └──────────────────────────────────────┘
-        │         │
-        │         ▼
-        │    dev-manager checks: data domain?
-        │    (project.type / project.domain / plan keywords)
-        │    ┌──────────────────────────────────────┐
-        │    │  Data domain detected?                │
-        │    │    NO  → skip data-manager silently   │
-        │    │    YES → dispatch data-manager        │
-        │    │          selects sub-agents:          │
-        │    │          ├─ data-engineer?            │
-        │    │          ├─ data-analyst?             │
-        │    │          ├─ data-scientist?           │
-        │    │          └─ database-optimizer?       │
-        │    │          plan fits data domain?       │
-        │    │            NO  → revisions → back to  │
-        │    │                  writing-plans        │
-        │    │            YES → approved             │
-        │    └──────────────────────────────────────┘
-        │         │
-        │         ▼
-        │    ╔══════════════════════════════════╗
-        │    ║        DEVELOPING STAGE          ║
-        │    ╚══════════════════════════════════╝
-        │         │
-        │         ▼
-        │    dev-manager: IMPLEMENTATION MODE SELECTION
-        │    ┌──────────────────────────────────────────────────────┐
-        │    │  Present choice to user (default = Codex):           │
-        │    │    [1] Codex development (default) — GPT-5.5         │
-        │    │    [2] Claude development — subagent-driven          │
-        │    │                                                      │
-        │    │  Write to state.json:                                │
-        │    │    workflow.implementation_mode = "codex"|"claude"   │
-        │    │    workflow.codex_model = resolved model             │
-        │    └──────────────────────────────────────────────────────┘
-        │         │
-        │         ├─── Codex mode ──────────────────────────────────┐
-        │         │    dev-manager dispatches: codex-development     │
-        │         │    (GPT-5.5 default; 5.4 fallback; explicit      │
-        │         │     model if user specified 5.6 or other)        │
-        │         │                                                  │
-        │         └─── Claude mode ──────────────────────────────────┤
-        │              dev-manager dispatches: subagent-driven-dev   │
-        │                                                            │
-        │         Both paths use the same per-task loop:             │
-        │         │  ┌─── Per-task loop ──────────────────────────┐  │
-        │         │  │                                            │  │
-        │         │  │  Are tasks independent?                    │  │
-        │         │  │    YES → parallel dispatch                 │  │
-        │         │  │    NO  → serial dispatch                   │  │
-        │         │  │                    │                       │  │
-        │         │  │                    ▼                       │  │
-        │         │  │  Something breaks / unexpected output?     │  │
-        │         │  │    YES → systematic-debugging              │  │
-        │         │  │           fix? YES → resume                │  │
-        │         │  │                NO  → escalate              │  │
-        │         │  │    NO  → continue                          │  │
-        │         │  │                    │                       │  │
-        │         │  │                    ▼                       │  │
-        │         │  │  spec-reviewer subagent                    │  │
-        │         │  │  (confirms output matches spec)            │  │
-        │         │  │         │                                  │  │
-        │         │  │         ▼                                  │  │
-        │         │  │  code-quality-reviewer subagent            │  │
-        │         │  │  (karapathy-style quality check)           │  │
-        │         │  │         │                                  │  │
-        │         │  │         ▼                                  │  │
-        │         │  │  task complete → next task                 │  │
-        │         │  └────────────────────────────────────────────┘  │
-        │         │                                                   │
-        │         │  All tasks done?                                  │
-        │         │    YES → state.json: implementation_complete = true
-        │         │
-        │         ▼
-        │    dev-manager checks: frontend / UI editing detected?
-        │    ┌──────────────────────────────────────┐
-        │    │  Frontend task detected?              │
-        │    │    NO  → skip ui-designer silently   │
-        │    │    YES → ask user:                    │
-        │    │          "Would you like me to        │
-        │    │           generate UI examples?"      │
-        │    │          User approves?               │
-        │    │            NO  → skip                 │
-        │    │            YES → dispatch ui-designer │
-        │    │                  apply or adapt       │
-        │    │                  examples to codebase │
-        │    └──────────────────────────────────────┘
-        │         │
-        │         ▼
-        │    ╔══════════════════════════════════╗
-        │    ║          REVIEW STAGE            ║
-        │    ╚══════════════════════════════════╝
-        │         │
-        │         ▼
-        │    dev-manager dispatches: karapathy-guideline
-        │    ┌──────────────────────────────────────┐
-        │    │  Issues found?                        │
-        │    │    YES → implementer fixes            │
-        │    │          back to karapathy-guideline  │
-        │    │    NO  → approved                     │
-        │    └──────────────────────────────────────┘
-        │         │
-        │         ▼
-        │    dev-manager dispatches: codebase-orchestrator
-        │    (optional — only if in state.json → project.active_agents)
-        │    ┌──────────────────────────────────────┐
-        │    │  Enabled?                             │
-        │    │    NO  → skip, log, continue          │
-        │    │    YES → map repo → propose fixes     │
-        │    │          await user approval          │
-        │    │          execute approved actions     │
-        │    │          critical issues found?       │
-        │    │            YES → offer rollback or    │
-        │    │                  fix-forward          │
-        │    │            NO  → approved             │
-        │    └──────────────────────────────────────┘
-        │         │
-        │         ▼
-        │    dev-manager dispatches: requesting-code-review
-        │    (generates structured review request for user)
-        │         │
-        │         ▼
-        │    [User reviews and responds]
-        │         │
-        │         ▼
-        │    dev-manager dispatches: receiving-code-review
-        │    (processes user feedback → fixes applied if needed)
-        │         │
-        │         ▼
-        │    dev-manager dispatches: system-checker (default — always runs)
-        │    ┌──────────────────────────────────────┐
-        │    │  Issues found?                        │
-        │    │    YES → implementer fixes            │
-        │    │          back to system-checker       │
-        │    │    NO  → approved                     │
-        │    └──────────────────────────────────────┘
-        │         │
-        │         ▼
-        │    dev-manager dispatches: codex-system-checker (optional)
-        │    ┌──────────────────────────────────────┐
-        │    │  Skip conditions (any one = skip):    │
-        │    │    • user said "skip codex system     │
-        │    │      check" or "no codex system check"│
-        │    │    • Codex CLI not on PATH            │
-        │    │  If skipped → log + continue          │
-        │    │                                       │
-        │    │  Verdict?                             │
-        │    │    PASS / FIXED / SKIPPED             │
-        │    │      → proceed                        │
-        │    │    ISSUES FOUND → await user decision │
-        │    │    ESCALATE → surface to user;        │
-        │    │               do not auto-advance     │
-        │    └──────────────────────────────────────┘
-        │         │
-        │         ▼
-        │    dev-manager dispatches: verification-before-completion
-        │    ┌──────────────────────────────────────┐
-        │    │  All verification commands pass?      │
-        │    │    YES → state.json:                  │
-        │    │          final_evals_passed = true    │
-        │    │          task_closed = true           │
-        │    │          stage = FINALIZED            │
-        │    │    NO  → back to implementer → fix   │
-        │    └──────────────────────────────────────┘
-        │
-        ├── "bug", "error", "failing", "not working",
-        │   "unexpected", "broken", "exception", "traceback"
-        │         ▼
-        │    ╔══════════════════════════════════╗
-        │    ║    FLOATING: systematic-debugging ║
-        │    ╚══════════════════════════════════╝
-        │    (fires in ANY stage — does not change stage)
-        │    diagnoses root cause → applies fix
-        │    returns control to dev-manager at same stage
-        │
-        └── "create skill", "write skill",
-            "improve skill", "update skill"
-                  ▼
-            ╔══════════════════════════════════╗
-            ║    FLOATING: writing-skills      ║
-            ╚══════════════════════════════════╝
-            (fires in ANY stage — does not change stage)
-            creates or improves a SKILL.md file
-            returns control to dev-manager at same stage
+```text
+PLANNING
+  - superpowers:brainstorming, if requirements are unclear
+  - superpowers:writing-plans
+  - plan-inspector
+  - codex-plan-inspector, Claude-to-Codex-CLI helper only
+  - gemini-plan-inspector, optional
+  - data-manager, only for data-domain projects
+
+DEVELOPING
+  - implementation mode selection
+  - codex-development, only from Claude Code when implementation_mode = "codex"
+  - superpowers:subagent-driven-development, if implementation_mode = "superpowers" or running in Codex
+
+REVIEW
+  - karpathy-guidelines
+  - codebase-orchestrator, optional
+  - superpowers:requesting-code-review
+  - superpowers:receiving-code-review, if user feedback exists
+  - system-checker
+  - codex-system-checker, Claude-to-Codex-CLI helper only
+  - superpowers:verification-before-completion
+
+FINALIZED
+  - task closed
 ```
 
 ---
 
-## 3. Agent Registry
+## 3. Path Selection
 
-| Agent | Category | Stage | Dispatched by | Returns to |
-|---|---|---|---|---|
-| `brainstorming` | Planning | PLANNING | `dev-manager` (trigger: intent unclear or Path A start) | `writing-plans` via `dev-manager` |
-| `writing-plans` | Planning | PLANNING | `dev-manager` (after brainstorming or on spec provided) | `dev-manager` |
-| `plan-inspector` | Planning | PLANNING | `dev-manager` | `dev-manager` |
-| `codex-plan-inspector` | Planning (optional) | PLANNING | `dev-manager` (after `plan-inspector`) | `dev-manager` |
-| `gemini-plan-inspector` | Planning (optional) | PLANNING | `dev-manager` (after `codex-plan-inspector`) | `dev-manager` |
-| `data-manager/*` | Planning (domain gate) | PLANNING | `dev-manager` | `dev-manager` |
-| `codex-development` | Implementation **(default)** | DEVELOPING | `dev-manager` when `implementation_mode == "codex"` | `dev-manager` |
-| `subagent-driven-development` | Implementation (Claude mode) | DEVELOPING | `dev-manager` when `implementation_mode == "claude"` | `dev-manager` |
-| `dispatching-parallel-agents` | Implementation | DEVELOPING | `subagent-driven-development` (Claude mode) | `subagent-driven-development` |
-| `executing-plans` | Implementation | DEVELOPING | `dev-manager` (alt path) | `dev-manager` |
-| `ui-designer` | Implementation (conditional) | DEVELOPING | `dev-manager` — only when user is editing frontend UI **and** approves example generation | `dev-manager` |
-| `systematic-debugging` | **Floating** | ANY | `dev-manager`, `subagent-driven-development`, or `codex-development` | caller |
-| `karapathy-guideline` | Review | REVIEW | `dev-manager` | `dev-manager` |
-| `codebase-admin/codebase-orchestrator` | Review (optional) | REVIEW | `dev-manager` | `dev-manager` |
-| `requesting-code-review` | Review | REVIEW | `dev-manager` | `dev-manager` |
-| `receiving-code-review` | Review | REVIEW | `dev-manager` | `dev-manager` |
-| `system-checker` | Review **(default)** | REVIEW | `dev-manager` | `dev-manager` |
-| `codex-system-checker` | Review (optional) | REVIEW | `dev-manager` (after `system-checker`) | `dev-manager` |
-| `verification-before-completion` | Review (final) | REVIEW | `dev-manager` | closes task |
-| `writing-skills` | **Floating** | ANY | `dev-manager` trigger | caller |
+### Path A - Full Workflow
 
----
+Use when the task is non-trivial, requirements are unclear, or implementation
+should not start before an approved plan.
 
-## 4. Path Selection
+1. Brainstorm/spec if needed.
+2. Write plan.
+3. Run plan gates.
+4. Implement.
+5. Review and verify.
+6. Finalize.
 
-```
-Has written plan before any edits?
-  YES → Path A — full workflow (brainstorming → writing-plans → plan-inspector → developing → review)
+### Path B - Small Fix
 
-  NO  → Path B — small fix, no plan
-         skip brainstorming and writing-plans
-         skip plan-inspector
-         go straight to DEVELOPING
-         karapathy-guideline and system-checker still run
+Use when the user requests a narrow, low-risk change and no plan is needed.
 
-User explicitly calls an agent by name → Path C
-         confirm stage context
-         run that agent
-         remind user which agents still remain in the workflow
-```
+1. Implement.
+2. Run `karpathy-guidelines`.
+3. Run `system-checker`.
+4. Run `superpowers:verification-before-completion`.
 
-### Implementation Mode (applies to all paths that enter DEVELOPING)
+### Path C - Direct Agent Call
 
-At the DEVELOPING stage entry point, dev-manager always presents mode selection:
+Use when the user explicitly names an agent.
 
-```
-  [1] Codex development (default) — Codex CLI with GPT-5.5
-  [2] Claude development — subagent-driven-development
-```
-
-Default on no answer: **Codex (1)**.
-
-Model resolution for Codex mode:
-- No preference → `gpt-5.5`
-- User says `gpt-5.4` → `gpt-5.4`
-- User says `gpt-5.5` → `gpt-5.5`
-- User says `gpt-5.6` → `gpt-5.6`
-- Any other explicit model → use as-is
-
-Both modes use the same per-task loop structure:
-parallel/serial dispatch → systematic-debugging → spec-reviewer → code-quality-reviewer
+1. Confirm current stage from `.dev-manager/state.json`.
+2. Run the requested agent.
+3. Report remaining gates and return control to `dev-manager`.
 
 ---
 
-## 5. Floating Agent Rules
+## 4. Host Rules for Codex Helpers
 
-Floating agents (`systematic-debugging`, `writing-skills`) behave as **interrupts**:
+The `codex-*` skills are Claude-side helpers that call Codex CLI:
 
-1. They may fire at any stage without breaking the workflow
-2. They **do not** update `workflow.stage` in `state.json`
-3. They **do not** set or clear any gate flags
-4. They append to `audit_trail` with `stage_before == stage_after`
-5. When done, they explicitly return control:
-   > "Returning control to dev-manager. Current stage: [STAGE]."
-6. Dev-manager resumes from exactly where it was
+- `codex-plan-inspector`
+- `codex-development`
+- `codex-system-checker`
+
+Use them only when running under Claude Code and Codex CLI delegation is
+intended.
+
+When running inside Codex, do not invoke these helpers recursively. Use native
+Codex behavior and Superpowers instead:
+
+- plan review: current Codex task or Superpowers review flow
+- implementation: current Codex task or `superpowers:subagent-driven-development`
+- system review: current Codex task plus `system-checker` and Superpowers verification
 
 ---
 
-## 6. Stage Gate Rules
+## 5. Implementation Mode
+
+At the DEVELOPING stage entry point, ask for implementation mode unless
+`workflow.implementation_mode` is already set.
+
+```text
+[1] Codex development
+    Claude-side helper that delegates to Codex CLI.
+    Do not use recursively from inside Codex.
+
+[2] Superpowers development
+    Use superpowers:subagent-driven-development.
+```
+
+Default on no answer:
+
+- Codex host: `superpowers`
+- Claude Code with Codex CLI delegation requested: `codex`
+- otherwise: `superpowers`
+
+Allowed values:
+
+- `codex`
+- `superpowers`
+- `claude` as a backward-compatible alias for `superpowers`
+
+---
+
+## 6. Superpowers Dependency
+
+This plugin expects Superpowers to be installed for:
+
+- `superpowers:brainstorming`
+- `superpowers:writing-plans`
+- `superpowers:subagent-driven-development`
+- `superpowers:dispatching-parallel-agents`
+- `superpowers:executing-plans`
+- `superpowers:systematic-debugging`
+- `superpowers:requesting-code-review`
+- `superpowers:receiving-code-review`
+- `superpowers:verification-before-completion`
+- `superpowers:finishing-a-development-branch`
+
+When Superpowers is unavailable, do not assume `.agents/` fallback files exist.
+Surface the missing dependency and ask the user to install Superpowers or choose
+a narrow inline fallback.
+
+In Codex, Superpowers subagent workflows require multi-agent support:
+
+```toml
+[features]
+multi_agent = true
+```
+
+If `[features]` already exists in `~/.codex/config.toml`, add
+`multi_agent = true` inside the existing block.
+
+---
+
+## 7. Data Domain Delegation
+
+Run `data-manager` when any of these are true:
+
+1. `state.json -> project.type` is one of:
+   - `biomechanics`
+   - `bioinformatics`
+   - `data-science`
+   - `data-engineering`
+   - `machine-learning`
+   - `analytics`
+2. `state.json -> project.domain` contains data-related terms.
+3. The active plan mentions data pipeline keywords such as `pipeline`, `ETL`,
+   `dataset`, `dataframe`, `SQL`, `schema`, `raw data`, `preprocessing`,
+   `feature engineering`, `time series`, or `signal processing`.
+
+`data-manager` is a planning-stage domain validator. It does not advance stages.
+
+---
+
+## 8. Floating Agents
+
+Floating agents may run at any stage without changing the stage:
+
+| Agent | Trigger |
+|---|---|
+| `superpowers:systematic-debugging` | Bug, error, failing test, or unexpected output |
+| `superpowers:writing-skills` | Creating or improving any `SKILL.md` file |
+
+Floating agents must append an audit entry with `stage_before == stage_after`.
+
+---
+
+## 9. Gate Rules
 
 | Transition | Requires |
 |---|---|
-| PLANNING → DEVELOPING | `gates.plan_approved = true` |
-| DEVELOPING → REVIEW | `gates.implementation_complete = true` |
-| REVIEW → FINALIZED | `gates.final_evals_passed = true` AND `gates.task_closed = true` |
+| `PLANNING -> DEVELOPING` | `gates.plan_approved = true` |
+| `DEVELOPING -> REVIEW` | `gates.implementation_complete = true` |
+| `REVIEW -> FINALIZED` | `gates.final_evals_passed = true` and `gates.task_closed = true` |
 
-**No transition may happen without dev-manager writing the new stage to `state.json` first.**
-
----
-
-## 7. Trigger Phrases (CLAUDE.md auto re-check)
-
-On any of the following, re-read `state.json` before acting:
-
-**Planning triggers:**
-`plan`, `design`, `feature`, `build`, `create`, `write`, `add`, `implement`
-
-**Development triggers:**
-`modify`, `update`, `fix`, `refactor`, `edit`, `change`
-
-**Debugging triggers (floating):**
-`bug`, `error`, `failing`, `not working`, `unexpected`, `broken`, `exception`, `traceback`
-
-**Skill triggers (floating):**
-`create skill`, `write skill`, `improve skill`, `update skill`
-
-**UI triggers (conditional — prompts user for approval before dispatching `ui-designer`):**
-`UI`, `frontend`, `interface`, `component`, `layout`, `style`, `design`, `dashboard`, `landing page`, `web app`
+Never advance a stage without updating `.dev-manager/state.json` first.
 
 ---
 
-## 8. Handshake Protocol
+## 10. Evals
 
-`handshake_required: true` in `state.json` means no subagent may begin implementation
-until dev-manager has confirmed the gate.
+Evals live in `.dev-manager/evals/evals.json`.
+Results live in `.dev-manager/results/iteration-N/`.
 
-```
-Superpower / writing-plans saves plan → .dev-manager/plans/
-        │
-        ▼
-dev-manager reads plan → runs plan-inspector
-        │
-        ▼
-dev-manager runs codex-plan-inspector (optional — skipped if user opted out or CLI absent)
-        │
-        ▼
-dev-manager runs gemini-plan-inspector (optional — skipped if user opted out or CLI absent)
-        │
-        ▼
-plan_approved = true → DEVELOPING unlocked
-        │
-        ▼
-subagent-driven-development begins
-        │
-        ▼
-implementation_complete = true → REVIEW unlocked
-        │
-        ▼
-karapathy-guideline → requesting-code-review → receiving-code-review
-→ system-checker → verification-before-completion
-        │
-        ▼
-task_closed = true → FINALIZED
+| Situation | Eval action |
+|---|---|
+| New feature added | Add new evals before final review |
+| Existing behavior modified | Run evals scoped to affected modules |
+| Bug fix | Add or run regression evals for the affected path |
+| Cosmetic/UI change | Eval optional, but validation still required |
+| Evals missing for changed behavior | Flag to user before proceeding |
+
+If the user says "skip evals", warn once, respect the choice, and log the skip.
+
+---
+
+## 11. Handoff Protocol
+
+When dispatching any agent, provide:
+
+1. Stage - current stage from `.dev-manager/state.json`
+2. Context - what was already done
+3. Focus - plan, diff, file, or feature under review
+4. Eval status - pass/fail count and result path, or `n/a`
+5. Blocking condition - what the agent must produce before the next step
+
+---
+
+## 12. Idempotency
+
+Before dispatching any agent, check:
+
+```text
+agents.<name>.approved == true
+AND
+agents.<name>.last_run != ""
 ```
 
----
+If true, ask whether to skip or re-run that agent.
 
-## 9. Audit Trail Format
-
-Every agent appends to `state.json → audit_trail` on entry and exit:
-
-```json
-{
-  "timestamp": "ISO-8601",
-  "agent": "agent-name",
-  "action": "short description of what was done",
-  "stage_before": "PLANNING",
-  "stage_after": "DEVELOPING",
-  "evals": "8/8 passing | skipped | n/a"
-}
-```
-
-Floating agents always have `stage_before == stage_after`.
+`run_count` increments on every dispatch. It is diagnostic, not a gate.
 
 ---
 
-## 10. Superpower ON vs OFF
+## 13. Rollback Checkpoints
 
-| | Superpower ON | Superpower OFF |
-|---|---|---|
-| Who dispatches agents | Superpower plugin | Claude reads each SKILL.md manually |
-| Behaviour | Identical | Identical |
-| state.json updates | Same | Same |
-| Trigger source | Plugin automates | CLAUDE.md trigger phrases + DEV-MANAGER-GATE sections |
-| Speed | Faster | Slightly slower (file reads per agent) |
+Save a rollback checkpoint after each gate passage:
 
-When Superpower is OFF, Claude reads `.agents/superpower/<agent-name>/SKILL.md`
-and follows it as if the plugin had dispatched it. The workflow is identical.
-
----
-
-## 11. Idempotency — Safe Session Restarts
-
-Before dispatching any agent, dev-manager checks `state.json → agents.<name>`:
-
-```
-approved == true  AND  last_run != ""  →  agent already completed this cycle
-```
-
-**Behaviour:**
-- If already approved → offer to skip or re-run, never silently re-dispatch
-- `run_count` increments on every dispatch (diagnostic only, not a gate)
-- This makes session restarts safe — no agent runs twice accidentally
-
-**When to reset:**
-- User explicitly requests re-run
-- Plan changes mid-implementation (plan-inspector must re-run)
-- System-checker fails after karapathy-guideline approved (karapathy re-runs too)
-
----
-
-## 12. Rollback Checkpoint Protocol
-
-### Save points
-
-A checkpoint is saved after each gate passage:
-
-| Gate passed | Checkpoint saved |
+| Gate | Checkpoint |
 |---|---|
 | `plan_approved = true` | End of PLANNING |
 | `implementation_complete = true` | End of DEVELOPING |
 | `final_evals_passed = true` | End of REVIEW |
 
-Stored in `state.json → workflow.rollback_checkpoint` (most recent only).
-
-### Rollback trigger conditions
-
-Offer rollback when:
-- system-checker finds issues requiring fundamental rework (not just minor fixes)
-- karapathy-guideline identifies architectural problems introduced during implementation
-- User explicitly requests "go back to [stage]"
-
-### Rollback procedure
-
-```
-User confirms rollback
-        │
-        ▼
-Restore gates from rollback_checkpoint.gates_snapshot
-        │
-        ▼
-Restore agent statuses from rollback_checkpoint.agents_snapshot
-        │
-        ▼
-Set workflow.stage = rollback_checkpoint.stage
-Set workflow.stage_entered_at = now
-        │
-        ▼
-Append to audit_trail: rollback event with reason
-        │
-        ▼
-Resume workflow from restored stage
-```
-
-**Never rollback silently — always confirm with user first.**
-
----
-
-## 13. Stall Detection
-
-On every session start, dev-manager checks:
-
-```
-hours_since(workflow.stage_entered_at) > workflow.stall_threshold_hours
-```
-
-Default threshold: 24 hours. Configurable per project in `state.json`.
-
-**Stall response:**
-> "⚠️ Project has been in [STAGE] for [N] hours (threshold: [T]h).
-> Continue from current position, or review state first?"
-
-**Blocked agent detection:**
-```
-agents.<name>.blocked_since != ""  →  agent is stuck
-```
-
-Report blocked agents immediately on session start before any dispatch.
-
-### Timestamp fields managed by dev-manager
-
-| Field | Written when |
-|---|---|
-| `workflow.stage_entered_at` | Every time `workflow.stage` changes |
-| `workflow.last_updated` | Every time any field in state.json changes |
-| `agents.<name>.last_run` | Every time an agent is dispatched |
-| `agents.<name>.blocked_since` | When agent returns BLOCKED; cleared on resolution |
+Never roll back silently. Offer rollback only when a later gate fails badly or
+the user explicitly requests it.
